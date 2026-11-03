@@ -4,7 +4,8 @@ import { getCategories, getProducts, getProduct, createOrder, getOrder, recentOr
 import { useCart } from './cart'
 import { inr, ProductCard, ProductImage, Loading, Skeleton, ErrorBox, Warli } from './components'
 
-// Stale-while-revalidate: show the last good result instantly, refresh in the background.
+// Stale-while-revalidate: show the last good result instantly, then always refresh in the background.
+// `fresh` turns true once live data has arrived; it also refreshes when the tab regains focus.
 function useFetch(fn, deps, key) {
   const read = () => { try {
     if (!key) return null
@@ -12,18 +13,24 @@ function useFetch(fn, deps, key) {
     if (v || !key.startsWith('p:')) return v
     return (JSON.parse(localStorage.getItem('sakhi-c:products:')) || []).find(x => String(x.id) === key.slice(2)) || null
   } catch { return null } }
-  const [s, set] = useState(() => { const d = read(); return { data: d, error: null, loading: !d } })
+  const [s, set] = useState(() => { const d = read(); return { data: d, error: null, loading: !d, fresh: false } })
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const f = () => document.visibilityState === 'visible' && setTick(t => t + 1)
+    document.addEventListener('visibilitychange', f)
+    return () => document.removeEventListener('visibilitychange', f)
+  }, [])
   useEffect(() => {
     let live = true
     const d = read()
-    set({ data: d, error: null, loading: !d })
+    set(x => tick ? { ...x, fresh: false } : { data: d, error: null, loading: !d, fresh: false })
     fn().then(data => {
       if (!live) return
-      set({ data, error: null, loading: false })
+      set({ data, error: null, loading: false, fresh: true })
       if (key) try { localStorage.setItem('sakhi-c:' + key, JSON.stringify(data)) } catch { /* storage full or blocked */ }
-    }).catch(error => live && set(x => x.data ? { ...x, loading: false } : { data: null, error, loading: false }))
+    }).catch(error => live && set(x => x.data ? { ...x, loading: false } : { data: null, error, loading: false, fresh: false }))
     return () => { live = false }
-  }, deps)
+  }, [...deps, tick])
   return s
 }
 
@@ -99,7 +106,7 @@ export function ProductDetail() {
   const nav = useNavigate()
   const [qty, setQty] = useState(1)
   const [added, setAdded] = useState(false)
-  const { data: p, loading, error } = useFetch(() => getProduct(id), [id], 'p:' + id)
+  const { data: p, loading, error, fresh } = useFetch(() => getProduct(id), [id], 'p:' + id)
   if (loading) return <Loading />
   if (error) return error.status === 404 ? <p className="p-12 text-center">This saree is no longer available. <Link className="underline" to="/products">Back to shop</Link></p> : <ErrorBox error={error} />
   const out = p.stock < 1
@@ -112,12 +119,12 @@ export function ProductDetail() {
         <p className="mt-1 text-ink/60">{p.category} · {p.fabric} · {p.color}</p>
         <p className="mt-4 text-3xl font-bold text-clay">{inr(p.price)}</p>
         <p className="mt-5 max-w-prose leading-relaxed">{p.description}</p>
-        <p className={`mt-4 text-sm font-bold ${out ? 'text-red-700' : 'text-leaf'}`}>{out ? 'Sold out' : `${p.stock} in stock`}</p>
+        <p className={`mt-4 text-sm font-bold ${out ? 'text-red-700' : 'text-leaf'}`}>{!fresh ? 'Checking stock…' : out ? 'Sold out' : `${p.stock} in stock`}</p>
         {!out && <div className="mt-5 flex items-center gap-3"><label htmlFor="q" className="font-semibold">Qty</label>
           <input id="q" type="number" min="1" max={p.stock} value={qty} onChange={e => setQty(Math.min(p.stock, Math.max(1, +e.target.value || 1)))} className="input w-20" /></div>}
         <div className="mt-6 flex flex-wrap gap-3">
-          <button className="btn" disabled={out} onClick={() => { add(p, qty); setAdded(true) }}>{added ? 'Added ✓' : 'Add to cart'}</button>
-          <button className="btn btn-alt" disabled={out} onClick={() => { add(p, qty); nav('/cart') }}>Buy now</button>
+          <button className="btn" disabled={out || !fresh} onClick={() => { add(p, Math.min(qty, p.stock)); setAdded(true) }}>{added ? 'Added ✓' : 'Add to cart'}</button>
+          <button className="btn btn-alt" disabled={out || !fresh} onClick={() => { add(p, Math.min(qty, p.stock)); nav('/cart') }}>Buy now</button>
         </div>
       </div>
     </div>
