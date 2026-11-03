@@ -30,15 +30,26 @@ async function http(path, { method = 'GET', json } = {}) {
   return body
 }
 
-export const getCategories = () => http('/categories')
+// Fast-load strategy: 60s in-memory cache + one shared in-flight request per URL.
+const mem = new Map(), inflight = new Map(), TTL = 60000
+function cachedGet(path) {
+  const hit = mem.get(path)
+  if (hit && Date.now() - hit.t < TTL) return Promise.resolve(hit.data)
+  if (inflight.has(path)) return inflight.get(path)
+  const p = http(path).then(d => { mem.set(path, { t: Date.now(), data: d }); return d }).finally(() => inflight.delete(path))
+  inflight.set(path, p); return p
+}
+export const clearCache = () => mem.clear()
+
+export const getCategories = () => cachedGet('/categories')
 export const getProducts = ({ category, search } = {}) => {
   const q = new URLSearchParams()
   if (category) q.set('category', category)
   if (search) q.set('search', search)
-  return http('/products' + (q.toString() ? `?${q}` : ''))
+  return cachedGet('/products' + (q.toString() ? `?${q}` : ''))
 }
-export const getProduct = id => http(`/products/${encodeURIComponent(id)}`)
-export const createOrder = order => http('/orders', { method: 'POST', json: order })
+export const getProduct = id => cachedGet(`/products/${encodeURIComponent(id)}`)
+export const createOrder = order => http('/orders', { method: 'POST', json: order }).then(r => { clearCache(); return r }) // stock changed
 export const getOrder = code => http(`/orders/${encodeURIComponent(code)}`)
 
 // Remember order codes on this device so customers can re-open them from "Track order".

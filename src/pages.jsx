@@ -2,47 +2,57 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { getCategories, getProducts, getProduct, createOrder, getOrder, recentOrders, rememberOrder } from './api'
 import { useCart } from './cart'
-import { inr, ProductCard, ProductImage, Loading, ErrorBox, Warli } from './components'
+import { inr, ProductCard, ProductImage, Loading, Skeleton, ErrorBox, Warli } from './components'
 
-function useFetch(fn, deps) {
-  const [s, set] = useState({ data: null, error: null, loading: true })
+// Stale-while-revalidate: show the last good result instantly, refresh in the background.
+function useFetch(fn, deps, key) {
+  const read = () => { try {
+    if (!key) return null
+    const v = JSON.parse(localStorage.getItem('sakhi-c:' + key))
+    if (v || !key.startsWith('p:')) return v
+    return (JSON.parse(localStorage.getItem('sakhi-c:products:')) || []).find(x => String(x.id) === key.slice(2)) || null
+  } catch { return null } }
+  const [s, set] = useState(() => { const d = read(); return { data: d, error: null, loading: !d } })
   useEffect(() => {
     let live = true
-    set(x => ({ ...x, loading: true, error: null }))
-    fn().then(data => live && set({ data, error: null, loading: false })).catch(error => live && set({ data: null, error, loading: false }))
+    const d = read()
+    set({ data: d, error: null, loading: !d })
+    fn().then(data => {
+      if (!live) return
+      set({ data, error: null, loading: false })
+      if (key) try { localStorage.setItem('sakhi-c:' + key, JSON.stringify(data)) } catch { /* storage full or blocked */ }
+    }).catch(error => live && set(x => x.data ? { ...x, loading: false } : { data: null, error, loading: false }))
     return () => { live = false }
   }, deps)
   return s
 }
 
 export function Home() {
-  const { data, loading, error } = useFetch(getProducts, [])
-  const cats = useFetch(getCategories, [])
+  const { data, loading, error } = useFetch(getProducts, [], 'products:')
+  const cats = useFetch(getCategories, [], 'categories')
+  const d = ms => ({ animationDelay: ms + 'ms' })
   return (
     <>
-      <section className="bg-sand">
-        <div className="mx-auto max-w-6xl px-4 pt-14 text-center">
-          <p className="font-bold uppercase tracking-widest text-clay">Handpicked · Heirloom-style · Made for you</p>
-          <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-bold leading-tight text-clay-dark sm:text-6xl">Sarees with a story, like the ones in your grandmother’s trunk.</h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-ink/75">Silk, cotton and bridal weaves from across India, chosen by hand at Sakhi Fashions.</p>
-          <Link to="/products" className="btn mt-7">Explore the collection</Link>
-          <Warli n={13} className="mx-auto mt-10 h-14 w-full max-w-3xl text-clay" />
-        </div>
-        <div className="band" />
+      <section className="mx-auto max-w-6xl px-4 pb-4 pt-14 text-center sm:pt-24">
+        <p className="fade-up text-sm font-bold uppercase tracking-[.3em] text-clay">Sakhi Fashions</p>
+        <h1 className="fade-up mx-auto mt-5 max-w-3xl text-5xl font-bold leading-[1.05] sm:text-7xl" style={d(100)}>Sarees with a <span className="mark">story</span> to tell.</h1>
+        <p className="fade-up mx-auto mt-5 max-w-md text-lg text-ink/70" style={d(200)}>Handpicked silk, cotton and bridal weaves, like the ones in your grandmother’s trunk.</p>
+        <Link to="/products" className="btn fade-up mt-8" style={d(300)}>Explore the collection</Link>
+        <Warli n={15} sway className="mx-auto mt-14 h-12 w-full max-w-3xl text-clay/80" />
       </section>
       <section className="mx-auto max-w-6xl px-4 py-12">
-        <h2 className="mb-5 text-3xl font-semibold">Shop by weave</h2>
-        <div className="flex flex-wrap gap-3">
-          {(cats.data || []).map(c => <Link key={c.id} to={`/products?category=${encodeURIComponent(c.name)}`} className="card px-6 py-4 text-xl font-semibold hover:bg-white">{c.name}</Link>)}
+        <div className="mb-8 flex flex-wrap items-center gap-2">
+          <span className="mr-2 font-display text-2xl">Shop by weave</span>
+          {(cats.data || []).map(c => <Link key={c.id} to={`/products?category=${encodeURIComponent(c.name)}`} className="chip">{c.name}</Link>)}
         </div>
-        <h2 className="mb-5 mt-12 text-3xl font-semibold">New arrivals</h2>
-        {loading ? <Loading /> : error ? <ErrorBox error={error} /> :
-          <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-4">{data.slice(0, 4).map(p => <ProductCard key={p.id} p={p} />)}</div>}
+        {loading ? <Skeleton /> : error ? <ErrorBox error={error} /> :
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-4">{data.slice(0, 4).map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}</div>}
+        <Link to="/products" className="link mt-8 inline-block font-bold">See all sarees →</Link>
       </section>
-      <section className="bg-clay text-paper">
-        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 text-center sm:grid-cols-3">
-          {[['Pay on delivery', 'Cash on delivery, no advance needed.'], ['Track your order', 'Use your order code (SF…) any time.'], ['Handpicked stock', 'Small batches, real fabrics.']].map(([t, d]) => (
-            <div key={t}><h3 className="text-xl font-semibold text-turmeric">{t}</h3><p className="mt-1 text-paper/85">{d}</p></div>))}
+      <section className="border-t border-clay/15">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 text-center sm:grid-cols-3">
+          {[['Pay on delivery', 'Cash on delivery, no advance needed.'], ['Track your order', 'Use your order code (SF…) any time.'], ['Handpicked stock', 'Small batches, real fabrics.']].map(([t, x], i) => (
+            <div key={t} className="fade-up" style={d(i * 120)}><h3 className="text-xl font-semibold text-clay">{t}</h3><p className="mt-1 text-ink/70">{x}</p></div>))}
         </div>
       </section>
     </>
@@ -54,8 +64,8 @@ export function Products() {
   const g = k => params.get(k) || ''
   const [category, search, fabric, sort, stock] = ['category', 'search', 'fabric', 'sort', 'stock'].map(g)
   const [q, setQ] = useState(search)
-  const cats = useFetch(getCategories, [])
-  const { data, loading, error } = useFetch(() => getProducts({ category, search }), [category, search])
+  const cats = useFetch(getCategories, [], 'categories')
+  const { data, loading, error } = useFetch(() => getProducts({ category, search }), [category, search], search ? null : 'products:' + category)
   const set = (k, v) => setParams(p => { const n = new URLSearchParams(p); v ? n.set(k, v) : n.delete(k); return n }, { replace: true })
   useEffect(() => { const t = setTimeout(() => q !== search && set('search', q.trim()), 400); return () => clearTimeout(t) }, [q])
   const fabrics = [...new Set((data || []).map(p => p.fabric).filter(Boolean))]
@@ -76,9 +86,9 @@ export function Products() {
         <label className="flex items-center gap-2"><input type="checkbox" checked={!!stock} onChange={e => set('stock', e.target.checked ? '1' : '')} /> In stock only</label>
         {(category || search || fabric || sort || stock) && <button className="underline" onClick={() => { setQ(''); setParams({}) }}>Clear all</button>}
       </div>
-      {loading ? <Loading /> : error ? <ErrorBox error={error} /> : list.length === 0
+      {loading ? <Skeleton /> : error ? <ErrorBox error={error} /> : list.length === 0
         ? <div className="py-12 text-center"><Warli n={5} className="mx-auto h-12 text-clay/60" /><p className="mt-3">No sarees match these filters. Try clearing a few.</p></div>
-        : <><p className="mb-3 text-sm text-ink/60">{list.length} saree{list.length > 1 && 's'}</p><div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">{list.map(p => <ProductCard key={p.id} p={p} />)}</div></>}
+        : <><p className="mb-3 text-sm text-ink/60">{list.length} saree{list.length > 1 && 's'}</p><div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">{list.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}</div></>}
     </div>
   )
 }
@@ -89,7 +99,7 @@ export function ProductDetail() {
   const nav = useNavigate()
   const [qty, setQty] = useState(1)
   const [added, setAdded] = useState(false)
-  const { data: p, loading, error } = useFetch(() => getProduct(id), [id])
+  const { data: p, loading, error } = useFetch(() => getProduct(id), [id], 'p:' + id)
   if (loading) return <Loading />
   if (error) return error.status === 404 ? <p className="p-12 text-center">This saree is no longer available. <Link className="underline" to="/products">Back to shop</Link></p> : <ErrorBox error={error} />
   const out = p.stock < 1
@@ -115,20 +125,32 @@ export function ProductDetail() {
 }
 
 export function Cart() {
-  const { items, setQty, remove, total } = useCart()
-  if (!items.length) return <div className="p-16 text-center"><Warli n={5} className="mx-auto mb-4 h-12 text-clay/60" /><p className="mb-4">Your cart is empty.</p><Link to="/products" className="btn">Browse sarees</Link></div>
+  const { items, setQty, remove, clear, add, total } = useCart()
+  const [undo, setUndo] = useState(null)
+  const del = it => { remove(it.product.id); setUndo(it) }
+  if (!items.length) return (
+    <div className="p-16 text-center">
+      <Warli n={5} sway className="mx-auto mb-4 h-12 text-clay/60" /><p className="mb-4">Your cart is empty.</p>
+      {undo && <p className="mb-4 text-sm">Removed {undo.product.name}. <button className="underline" onClick={() => { add(undo.product, undo.qty); setUndo(null) }}>Undo</button></p>}
+      <Link to="/products" className="btn">Browse sarees</Link>
+    </div>)
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="mb-5 text-4xl font-bold text-clay-dark">Your cart</h1>
-      {items.map(({ product: p, qty }) => (
-        <div key={p.id} className="card mb-3 flex flex-wrap items-center gap-3 p-3">
-          <ProductImage product={p} className="h-24 w-20 shrink-0 rounded" />
-          <div className="min-w-40 flex-1"><p className="font-display text-xl font-semibold">{p.name}</p><p className="text-clay-dark">{inr(p.price)}</p></div>
-          <input type="number" min="1" max={p.stock} value={qty} onChange={e => setQty(p.id, Math.min(p.stock, +e.target.value || 1))} className="input w-20" aria-label="Quantity" />
-          <button onClick={() => remove(p.id)} className="text-sm text-red-700 underline">Remove</button>
-        </div>
-      ))}
-      <p className="mt-5 text-right text-2xl font-bold">Total: {inr(total)}</p>
+    <div className="mx-auto max-w-3xl px-4 py-10">
+      <div className="mb-6 flex items-baseline justify-between"><h1 className="text-4xl font-bold">Your cart</h1><button onClick={() => { items.forEach(i => remove(i.product.id)); clear() }} className="text-sm underline">Clear cart</button></div>
+      {undo && <p className="fade-up mb-4 rounded-lg bg-sand px-4 py-2 text-sm">Removed {undo.product.name}. <button className="font-bold underline" onClick={() => { add(undo.product, undo.qty); setUndo(null) }}>Undo</button></p>}
+      {items.map(it => { const { product: p, qty } = it; return (
+        <div key={p.id} className="card fade-up mb-3 flex flex-wrap items-center gap-3 p-3">
+          <ProductImage product={p} className="h-24 w-20 shrink-0 rounded-lg" />
+          <div className="min-w-40 flex-1"><p className="font-display text-xl font-semibold">{p.name}</p><p className="text-sm text-ink/60">{inr(p.price)} each</p></div>
+          <div className="inline-flex items-center rounded-full border border-clay/30">
+            <button className="h-9 w-9 text-lg transition active:scale-90" onClick={() => qty > 1 ? setQty(p.id, qty - 1) : del(it)} aria-label={qty > 1 ? 'Reduce quantity' : 'Remove item'}>−</button>
+            <span key={qty} className="pop w-8 text-center font-bold">{qty}</span>
+            <button className="h-9 w-9 text-lg transition active:scale-90 disabled:opacity-30" disabled={qty >= p.stock} onClick={() => setQty(p.id, qty + 1)} aria-label="Increase quantity">+</button>
+          </div>
+          <p className="w-24 text-right font-bold text-clay">{inr(p.price * qty)}</p>
+          <button onClick={() => del(it)} className="text-sm text-red-700 underline">Remove</button>
+        </div>) })}
+      <p className="mt-6 text-right text-2xl font-bold">Total: {inr(total)}</p>
       <div className="mt-4 text-right"><Link to="/checkout" className="btn">Checkout</Link></div>
     </div>
   )
