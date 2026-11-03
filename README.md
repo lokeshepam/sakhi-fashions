@@ -26,3 +26,10 @@ If you must keep the policy, set `VITE_CLIENT_ID/SECRET` and allow headers `clie
 - Add real photos: return `image_url` per product from the DB (Cloudinary free tier); the site shows them automatically.
 - Deploy on Vercel/Netlify free (build `npm run build`, output `dist`), then set the CORS origin to that URL.
 - Later: order status updates (SHIPPED/DELIVERED) from an admin flow, and a `GET /orders?phone=` lookup so customers don't need the code.
+
+## Speed and caching (frontend only; the API contract is unchanged)
+- **Warm-up:** products and categories start loading before React renders.
+- **60 s in-memory cache + request de-duplication** in `src/api.js` (Home and Shop share one request).
+- **Stale-while-revalidate:** the last good lists are kept in `localStorage`; repeat visits show them instantly, then refresh quietly.
+- **Hover prefetch:** hovering a product card loads its detail, and the detail page can start from the cached list.
+- The cache is cleared after an order is placed so stock stays fresh. Tweak `TTL` in `api.js`.

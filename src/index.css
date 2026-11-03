@@ -1,22 +1,29 @@
 @import "tailwindcss";
 @theme {
-  --color-paper: #fbf3e6;
-  --color-sand: #f1e2c8;
-  --color-clay: #b4553a;
-  --color-clay-dark: #8c3d29;
-  --color-turmeric: #e3a42b;
-  --color-leaf: #5f7f5a;
-  --color-ink: #3a2a24;
-  --font-display: "Fraunces", Georgia, serif;
-  --font-sans: "Nunito", system-ui, sans-serif;
+  --color-paper: #fbf6ec; --color-sand: #f1e2c8; --color-clay: #b4553a; --color-clay-dark: #8c3d29;
+  --color-turmeric: #e3a42b; --color-leaf: #5f7f5a; --color-ink: #3a2a24;
+  --font-display: "Fraunces", Georgia, serif; --font-sans: "Nunito", system-ui, sans-serif;
 }
 body { @apply bg-paper text-ink font-sans; }
 h1, h2, h3 { @apply font-display; }
 .band { height: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14'%3E%3Cpath d='M0 13L7 1l7 12 7-12 7 12' fill='none' stroke='%23e3a42b' stroke-width='2'/%3E%3C/svg%3E") repeat-x center; }
 .weave { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18'%3E%3Cpath d='M9 1l8 8-8 8-8-8z' fill='none' stroke='white' stroke-opacity='.28' stroke-width='1.2'/%3E%3C/svg%3E"); }
-.card { @apply rounded-md border border-clay/20 bg-white/70 shadow-sm; }
-.btn { @apply inline-block rounded-full bg-clay px-6 py-2.5 text-center font-bold text-paper transition hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turmeric disabled:opacity-50; }
-.btn-alt { @apply bg-turmeric text-ink hover:bg-[#f0b648]; }
-.input { @apply w-full rounded-md border border-clay/30 bg-white px-3 py-2 focus:outline-2 focus:outline-turmeric; }
-.chip { @apply rounded-full border border-clay/40 bg-white px-4 py-1 text-sm; }
-.chip-on { @apply border-clay bg-clay text-paper; }
+.card { @apply rounded-xl bg-white/70; }
+.lift { transition: transform .3s ease, box-shadow .3s ease; }
+.lift:hover { transform: translateY(-5px); box-shadow: 0 14px 30px -14px rgba(140, 61, 41, .35); }
+.btn { @apply inline-block rounded-full bg-clay px-7 py-2.5 text-center font-bold text-paper transition duration-200 hover:bg-clay-dark active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turmeric disabled:opacity-50; }
+.btn-alt { @apply bg-ink text-paper hover:bg-clay-dark; }
+.input { @apply w-full rounded-lg border border-clay/25 bg-white px-3 py-2 transition focus:border-clay focus:outline-2 focus:outline-turmeric/60; }
+.chip { @apply rounded-full border border-clay/30 px-4 py-1 text-sm transition hover:border-clay hover:bg-white active:scale-95; }
+.chip-on { @apply border-clay bg-clay text-paper hover:bg-clay; }
+.mark { background: linear-gradient(transparent 62%, rgba(227, 164, 43, .5) 62%); }
+.link { position: relative; }
+.link::after { content: ''; position: absolute; left: 0; right: 0; bottom: -3px; height: 2px; background: var(--color-clay); transform: scaleX(0); transform-origin: left; transition: transform .3s ease; }
+.link:hover::after, .link-on::after { transform: scaleX(1); }
+@keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); } }
+@keyframes sway { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.fade-up { animation: fade-up .55s ease both; }
+.pop { animation: pop .35s ease; }
+.sway { animation: sway 2.6s ease-in-out infinite; transform-box: fill-box; }
+@media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation: none !important; transition: none !important; } }
